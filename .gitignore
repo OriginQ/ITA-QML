@@ -1,0 +1,27 @@
+# pixi environments
+.pixi/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Model outputs
+vqc_model_*/
+vqc_plot_*/
+*_models/
+*_plots/
+*.npz
+*.pth
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/

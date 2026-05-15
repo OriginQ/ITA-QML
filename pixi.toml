@@ -1,0 +1,57 @@
+[workspace]
+channels = ["https://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge"]
+name = "qme_vqnet"
+platforms = ["linux-64"]
+version = "0.3.0"
+
+[pypi-options]
+index-url = "https://pypi.mirrors.ustc.edu.cn/simple"
+
+[tasks]
+# 快速测试 — 单折训练, 验证代码和配置正确性 (默认 pyvqnet 环境)
+test = "python main.py"
+
+# VQC 训练 — 10 折交叉验证
+train = "python train.py --config configs/train_config.json"
+
+# 经典 MLP 基线训练 — 与 VQC 对比 (pyvqnet 框架)
+train-classical = "python train.py --config configs/train_config.json --backend classical"
+
+# ============================================================
+# PyVQNet 环境: pyvqnet + pyqpanda3 (CPU 量子模拟)
+# ============================================================
+[feature.pyvqnet.dependencies]
+python = "3.10.*"
+numpy = ">=1.21,<3"
+pandas = ">=2.0,<3"
+scikit-learn = ">=1.5,<2"
+matplotlib = ">=3.9,<4"
+scipy = ">=1.14,<2"
+
+[feature.pyvqnet.pypi-dependencies]
+pyvqnet = ">=2.15,<3"
+pyqpanda3 = ">=0.3,<1"
+
+# ============================================================
+# Torch 环境: PyTorch CPU (经典模型训练)
+# ============================================================
+[feature.torch.tasks]
+# Torch 经典 MLP 训练 (torch 环境)
+train-torch = "python train.py --config configs/train_config.json --backend classical_torch"
+
+[feature.torch.dependencies]
+python = "3.11.*"
+numpy = ">=2.0,<3"
+pandas = ">=2.0,<3"
+scikit-learn = ">=1.5,<2"
+matplotlib = ">=3.9,<4"
+scipy = ">=1.14,<2"
+pytorch = ">=2.4,<3"
+
+# ============================================================
+# 环境定义
+# ============================================================
+[environments]
+default = ["pyvqnet"]
+pyvqnet = ["pyvqnet"]
+torch = ["torch"]

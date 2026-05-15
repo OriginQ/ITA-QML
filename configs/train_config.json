@@ -1,0 +1,32 @@
+{
+  "task": {
+    "backend": "vqc",
+    "dataset": "csv_regression"
+  },
+  "data": {
+    "csv_path": "data/ben.csv",
+    "target_col": "Corr_MP2",
+    "batch_size": 32,
+    "n_splits": 10,
+    "random_state": 42
+  },
+  "model": {
+    "input_size": 11,
+    "hidden_size": 24,
+    "dropout_rate": 0.1,
+    "qubit_num": 6,
+    "qc_layers": 1
+  },
+  "training": {
+    "epochs": 100,
+    "lr": 0.001,
+    "early_stop": true,
+    "patience": 20,
+    "min_delta": 1e-5,
+    "restore_best_weights": true
+  },
+  "output": {
+    "model_dir": "vqc_model_ben_mp2",
+    "plot_dir": "vqc_plot_ben_mp2"
+  }
+}
