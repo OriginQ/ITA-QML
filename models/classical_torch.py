@@ -6,7 +6,7 @@ class DeepMLP(torch.nn.Module):
     """经典深度 MLP 回归模型
 
     固定结构: Linear(11→24) → LeakyReLU → Dropout
-               → Linear(24→24) → Linear(24→1)
+               → Linear(24→24) → LeakyReLU → Linear(24→1)
     """
     def __init__(self, input_size=11, dropout_rate=0.1,
                  leaky_relu_slope=0.1, **kwargs):
@@ -14,8 +14,9 @@ class DeepMLP(torch.nn.Module):
         self.net = torch.nn.Sequential(
             torch.nn.Linear(input_size, 24),
             torch.nn.LeakyReLU(leaky_relu_slope),
-            torch.nn.Dropout(dropout_rate),
+            # torch.nn.Dropout(dropout_rate),
             torch.nn.Linear(24, 24),
+            torch.nn.LeakyReLU(leaky_relu_slope),
             torch.nn.Linear(24, 1),
         )
 
