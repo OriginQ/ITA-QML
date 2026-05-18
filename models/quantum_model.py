@@ -82,7 +82,7 @@ class QNet(Module):
     结构: Linear(11→24) → LeakyReLU → Dropout → Linear(24→6)
             → VQCLayer(6 qubits) → Linear(6→6) → Linear(6→1)
     """
-    def __init__(self, qubit_num=6, input_size=11, hidden_size=24, dropout_rate=0.1):
+    def __init__(self, qubit_num=6, input_size=11, hidden_size=24, dropout_rate=0.1, **kwargs):
         super().__init__()
         self.fc1 = Linear(input_size, hidden_size)
         self.leaky_relu = LeakyReLu(0.1)

@@ -63,6 +63,10 @@ def main():
         restore_best_weights=train_cfg['restore_best_weights'],
         backend=backend,
         model_cfg=model_cfg,
+        use_scheduler=train_cfg.get('use_scheduler', True),
+        scheduler_factor=train_cfg.get('scheduler_factor', 0.5),
+        scheduler_patience=train_cfg.get('scheduler_patience', 20),
+        grad_clip_norm=train_cfg.get('grad_clip_norm', 1.0),
     )
 
     # 绘图

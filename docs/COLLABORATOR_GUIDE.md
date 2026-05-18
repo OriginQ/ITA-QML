@@ -1,6 +1,4 @@
-# 经典模型协作者指南
-
-本指南教你如何在这个项目中接入自己的经典 ML 模型，以及如何使用 pixi 管理环境。
+# 模型接入与 pixi 环境管理指南
 
 ---
 
@@ -15,7 +13,7 @@ qme_vqnet/
 ├── main.py                    # 快速测试入口 (单折验证)
 ├── models/
 │   ├── __init__.py            # 【注册中心 — 新增模型改这里】
-│   ├── classical_torch.py     # 你的 torch 模型放这里 (或其他新文件)
+│   ├── classical_torch.py     # DeepMLP (来自 cml.py, 你的 torch 模型放这里)
 │   ├── classical.py           # pyvqnet 版经典 MLP (忽略)
 │   └── quantum_model.py       # VQC 量子模型 (忽略)
 ├── train/
@@ -53,8 +51,21 @@ qme_vqnet/
 - 构造函数接受 `**model_cfg` 传来的参数 (多余的用 `**kwargs` 吞掉)
 - 输入 shape `[batch, input_size]`, 输出 shape `[batch, 1]`
 
+**参考: 现有 DeepMLP**
+
+固定结构: `11 → 6 → LeakyReLU → Dropout → 24 → 24 → 1`
+
 ```python
-# models/my_net.py
+# models/classical_torch.py
+class DeepMLP(torch.nn.Module):
+    def __init__(self, input_size=11, dropout_rate=0.1,
+                 leaky_relu_slope=0.1, **kwargs):
+        ...
+```
+- 架构已锁定, 无需配置隐藏层维度
+- 激活仅加在第一隐藏层之后
+
+**示例: 接入你自己的 Transformer 模型**
 import torch
 
 class Net(torch.nn.Module):
@@ -82,9 +93,9 @@ class Net(torch.nn.Module):
 ```python
 # ---- PyTorch 模型 ----
 try:
-    from models.classical_torch import ClassicalTorchNet
+    from models.classical_torch import DeepMLP
     from models.my_net import Net   # ← 新增
-    MODEL_REGISTRY['classical_torch'] = ClassicalTorchNet
+    MODEL_REGISTRY['classical_torch'] = DeepMLP
     MODEL_REGISTRY['net'] = Net      # ← 新增, 名字自定
 except ImportError:
     pass
@@ -137,7 +148,7 @@ def _get_module(backend):
   },
   "model": {
     "input_size": 11,
-    "hidden_size": 64,
+    "hidden_sizes": [64, 32, 16],
     "dropout_rate": 0.1,
     "num_heads": 4,
     "num_layers": 2
@@ -148,7 +159,11 @@ def _get_module(backend):
     "early_stop": true,
     "patience": 30,
     "min_delta": 1e-5,
-    "restore_best_weights": true
+    "restore_best_weights": true,
+    "use_scheduler": true,
+    "scheduler_factor": 0.5,
+    "scheduler_patience": 20,
+    "grad_clip_norm": 1.0
   },
   "output": {
     "model_dir": "transformer_models",
@@ -172,6 +187,10 @@ pixi run -e torch python train.py --config configs/your_config.json \
 # 禁用早停, 跑满所有 epochs
 pixi run -e torch python train.py --config configs/your_config.json \
     --no-early-stop
+
+# 禁用学习率调度, 调大梯度裁剪
+pixi run -e torch python train.py --config configs/your_config.json \
+    --no-scheduler --grad-clip-norm 5.0
 ```
 
 ### 设为 pixi 快捷任务
@@ -271,7 +290,7 @@ torch = ["torch"]       ← 环境 "torch" 由 feature "torch" 组成
 
 一个环境可以组合多个 feature (如 `torch = ["torch", "dev_tools"]`)，但目前每个环境只对应一个 feature。
 
-### 协作者之间的版本一致性
+### 版本一致性
 
 `pixi.lock` 文件锁定了所有依赖的精确版本。**这个文件要提交到 git**。其他人在 `pixi install` 时会根据锁文件安装完全相同的版本，消除"我这能跑你那不行"的问题。
 

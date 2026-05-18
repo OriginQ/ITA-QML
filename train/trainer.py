@@ -54,7 +54,9 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 label_scaler, model_dir, plot_dir, epochs=100, lr=0.001,
                 batch_size=32, fold=0, early_stop=True, patience=10,
                 min_delta=1e-4, restore_best_weights=True,
-                backend='vqc', model_cfg=None):
+                backend='vqc', model_cfg=None,
+                use_scheduler=True, scheduler_factor=0.5, scheduler_patience=20,
+                grad_clip_norm=1.0):
     """训练模型 — 按 backend 自动派发到对应框架"""
     mod = _get_module(backend)
     return mod.train_model(
@@ -65,6 +67,9 @@ def train_model(train_features, train_labels, val_features, val_labels,
         early_stop=early_stop, patience=patience,
         min_delta=min_delta, restore_best_weights=restore_best_weights,
         backend=backend, model_cfg=model_cfg,
+        use_scheduler=use_scheduler, scheduler_factor=scheduler_factor,
+        scheduler_patience=scheduler_patience,
+        grad_clip_norm=grad_clip_norm,
     )
 
 

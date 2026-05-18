@@ -1,9 +1,4 @@
-"""PyTorch 训练器 — 适用于 classical_torch 等 torch 后端
-
-协作者参考: 实现新的 torch 训练逻辑时,
-    1. 保持 train_model / evaluate_model 签名与 trainer_vqnet.py 一致
-    2. 在 train/__init__.py 的 TRAINER_REGISTRY 注册 backend → 模块映射
-"""
+"""PyTorch 训练器 — 适用于 classical_torch 等 torch 后端"""
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -50,7 +45,9 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 label_scaler, model_dir, plot_dir, epochs=100, lr=0.001,
                 batch_size=32, fold=0, early_stop=True, patience=10,
                 min_delta=1e-4, restore_best_weights=True,
-                backend='classical_torch', model_cfg=None):
+                backend='classical_torch', model_cfg=None,
+                use_scheduler=True, scheduler_factor=0.5, scheduler_patience=20,
+                grad_clip_norm=1.0):
     from models import create_model
 
     if model_cfg is None:
@@ -58,6 +55,13 @@ def train_model(train_features, train_labels, val_features, val_labels,
     model = create_model(backend, model_cfg)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
+
+    # 学习率调度器 (来自 cml.py)
+    scheduler = None
+    if use_scheduler:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=scheduler_factor,
+            patience=scheduler_patience)
 
     train_loader = _build_torch_loader(
         train_features, train_labels, batch_size, shuffle=True)
@@ -78,6 +82,12 @@ def train_model(train_features, train_labels, val_features, val_labels,
             optimizer.zero_grad()
             loss = criterion(model(batch_x), batch_y)
             loss.backward()
+
+            # 梯度裁剪 (来自 cml.py, grad_clip_norm=0 则禁用)
+            if grad_clip_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                               max_norm=grad_clip_norm)
+
             optimizer.step()
             train_loss += loss.item()
         train_loss /= max(len(train_loader), 1)
@@ -90,8 +100,15 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 val_loss += criterion(model(batch_x), batch_y).item()
         val_loss /= max(len(val_loader), 1)
 
-        print(f'Epoch {epoch + 1}/{epochs} - '
-              f'Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+        # 学习率调度
+        if scheduler is not None:
+            scheduler.step(val_loss)
+
+        current_lr = optimizer.param_groups[0]['lr']
+        if (epoch + 1) % 20 == 0:
+            print(f'Epoch {epoch + 1}/{epochs} - '
+                  f'Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, '
+                  f'LR: {current_lr:.6f}')
 
         # === 早停 (仅在 early_stop=True 时生效) ===
         if early_stop:
@@ -100,10 +117,12 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 patience_counter = 0
                 best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                 torch.save(model.state_dict(), best_param_file)
-                print(f'  ✓ 验证损失改善, 保存最佳模型 (val_loss={val_loss:.4f})')
+                if (epoch + 1) % 20 == 0:
+                    print(f'  ✓ 验证损失改善, 保存最佳模型 (val_loss={val_loss:.4f})')
             else:
                 patience_counter += 1
-                print(f'  ⚠ 验证损失未改善 {patience_counter}/{patience}')
+                if (epoch + 1) % 20 == 0:
+                    print(f'  ⚠ 验证损失未改善 {patience_counter}/{patience}')
                 if patience_counter >= patience:
                     stopped_early = True
                     print(f'  🛑 早停触发！在 epoch {epoch + 1} 停止训练')

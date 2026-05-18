@@ -19,8 +19,8 @@ except ImportError:
 
 # ---- PyTorch 模型 ----
 try:
-    from models.classical_torch import ClassicalTorchNet
-    MODEL_REGISTRY['classical_torch'] = ClassicalTorchNet
+    from models.classical_torch import DeepMLP
+    MODEL_REGISTRY['classical_torch'] = DeepMLP
 except ImportError:
     pass
 

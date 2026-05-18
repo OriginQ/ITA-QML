@@ -35,7 +35,9 @@ def load_config(config_path):
 def merge_cli_overrides(cfg, args):
     """命令行参数覆盖 JSON 配置"""
     overrides = {
-        'training': ['epochs', 'lr', 'early_stop', 'patience', 'min_delta', 'restore_best_weights'],
+        'training': ['epochs', 'lr', 'early_stop', 'patience', 'min_delta',
+                     'restore_best_weights', 'use_scheduler', 'scheduler_factor',
+                     'scheduler_patience', 'grad_clip_norm'],
         'model': ['hidden_size', 'dropout_rate', 'qubit_num', 'qc_layers'],
         'data': ['batch_size', 'n_splits', 'random_state', 'target_col'],
     }
@@ -123,6 +125,10 @@ def run_training(cfg):
             restore_best_weights=train_cfg['restore_best_weights'],
             backend=backend,
             model_cfg=model_cfg,
+            use_scheduler=train_cfg.get('use_scheduler', True),
+            scheduler_factor=train_cfg.get('scheduler_factor', 0.5),
+            scheduler_patience=train_cfg.get('scheduler_patience', 20),
+            grad_clip_norm=train_cfg.get('grad_clip_norm', 1.0),
         )
 
         train_pred, train_true = evaluate_model(
@@ -209,6 +215,13 @@ def build_parser():
                          help='禁用早停法, 训练完所有 epochs')
     g_train.add_argument('--patience', type=int, help='早停耐心值')
     g_train.add_argument('--min-delta', type=float, help='早停最小改善阈值')
+    g_train.add_argument('--use-scheduler', dest='use_scheduler', action='store_true',
+                         default=None, help='启用 ReduceLROnPlateau 调度器 (默认)')
+    g_train.add_argument('--no-scheduler', dest='use_scheduler', action='store_false',
+                         default=None, help='禁用学习率调度器')
+    g_train.add_argument('--scheduler-factor', type=float, help='调度器衰减因子')
+    g_train.add_argument('--scheduler-patience', type=int, help='调度器耐心值')
+    g_train.add_argument('--grad-clip-norm', type=float, help='梯度裁剪 max_norm (0=禁用)')
 
     # 输出
     g_out = parser.add_argument_group('输出')

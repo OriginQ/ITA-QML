@@ -80,7 +80,7 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 label_scaler, model_dir, plot_dir, epochs=100, lr=0.001,
                 batch_size=32, fold=0, early_stop=True, patience=10,
                 min_delta=1e-4, restore_best_weights=True,
-                backend='vqc', model_cfg=None):
+                backend='vqc', model_cfg=None, **kwargs):
     if model_cfg is None:
         model_cfg = {}
     model = create_model(backend, model_cfg)
