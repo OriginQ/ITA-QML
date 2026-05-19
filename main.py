@@ -1,4 +1,9 @@
-"""快速测试入口 — 单折训练, 用于验证代码和配置"""
+"""Quick-test entry point for single-fold training and configuration validation.
+
+This script loads a JSON configuration, runs a single fold of training
+(fold 0 only), evaluates the model, and generates a scatter plot. It is
+intended for rapid code and configuration smoke-testing.
+"""
 import json
 from pathlib import Path
 
@@ -8,6 +13,11 @@ from utils.plot import plot_results
 
 
 def main():
+    """Run a single-fold training pass for quick validation.
+
+    Loads ``configs/train_config.json``, runs fold 0, prints metrics,
+    and saves a predictions scatter plot.
+    """
     proj_root = Path(__file__).resolve().parent
 
     with open(proj_root / 'configs' / 'train_config.json') as f:
@@ -22,7 +32,6 @@ def main():
     backend = task_cfg['backend']
     dataset_name = task_cfg['dataset']
 
-    # 路径
     csv_path = data_cfg['csv_path']
     if not Path(csv_path).is_absolute():
         csv_path = str(proj_root / csv_path)
@@ -32,21 +41,20 @@ def main():
     model_dir.mkdir(exist_ok=True)
     plot_dir.mkdir(exist_ok=True)
 
-    # 数据
     features, labels, feature_scaler, label_scaler = load_dataset(
         dataset_name, {**data_cfg, 'csv_path': csv_path})
 
-    print(f'任务: backend={backend}, target={data_cfg["target_col"]}')
-    print(f'数据: {csv_path}  (总样本: {len(features)})')
+    print(f'Task: backend={backend}, target={data_cfg["target_col"]}')
+    print(f'Data: {csv_path}  (total samples: {len(features)})')
 
-    # 只跑第一折
+    # Run only the first fold.
     splits = list(create_cv_splits(
         features, labels,
         n_splits=data_cfg['n_splits'],
         random_state=data_cfg['random_state'],
     ))
     tr_x, tr_y, val_x, val_y = splits[0]
-    print(f'测试折 — 训练集: {len(tr_x)}, 验证集: {len(val_x)}')
+    print(f'Test fold — train: {len(tr_x)}, val: {len(val_x)}')
 
     model, train_metrics, val_metrics = train_model(
         tr_x, tr_y, val_x, val_y,
@@ -69,17 +77,16 @@ def main():
         grad_clip_norm=train_cfg.get('grad_clip_norm', 1.0),
     )
 
-    # 绘图
     train_pred, train_true = evaluate_model(
         model, tr_x, tr_y, data_cfg['batch_size'], label_scaler, backend=backend)
     val_pred, val_true = evaluate_model(
         model, val_x, val_y, data_cfg['batch_size'], label_scaler, backend=backend)
     plot_results(train_pred, train_true, val_pred, val_true, 0, plot_dir)
 
-    print(f'\n=== 测试结果 ===')
-    print(f'训练: RMSE={train_metrics[0]:.4f}, R2={train_metrics[3]:.4f}')
-    print(f'验证: RMSE={val_metrics[0]:.4f}, R2={val_metrics[3]:.4f}')
-    print('测试通过 ✓')
+    print(f'\n=== Test Results ===')
+    print(f'Train: RMSE={train_metrics[0]:.4f}, R2={train_metrics[3]:.4f}')
+    print(f'Val:   RMSE={val_metrics[0]:.4f}, R2={val_metrics[3]:.4f}')
+    print('Test passed.')
 
 
 if __name__ == '__main__':

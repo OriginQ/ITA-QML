@@ -1,17 +1,20 @@
-"""VQC 训练 CLI — 命令行 + JSON 配置文件驱动
+"""VQC training CLI — driven by command-line arguments and JSON configuration.
 
-用法:
-    python train.py                          # 使用默认 configs/train_config.json
+Usage::
+
+    python train.py                          # Use default configs/train_config.json
     python train.py --config configs/exp1.json
-    python train.py --backend classical      # 切换计算后端
-    python train.py --target-col Corr_CCSD   # 切换回归目标
-    python train.py --epochs 200 --lr 0.0005 # 命令行覆盖 JSON 超参数
+    python train.py --backend classical      # Switch backend
+    python train.py --target-col Corr_CCSD   # Switch regression target
+    python train.py --epochs 200 --lr 0.0005 # Override hyperparameters via CLI
     python train.py --data-path data/ben.csv --n-splits 5
 
-扩展新模型/数据集:
-    1. 实现模型类 → models/__init__.py 的 MODEL_REGISTRY 注册
-    2. 实现数据集加载函数 → data/dataset.py 的 DATASET_REGISTRY 注册
-    3. JSON 配置中设置 backend / dataset 名即可
+To extend with a new model or dataset:
+    1. Implement the model class and register it in
+       ``models/__init__.py`` ``MODEL_REGISTRY``.
+    2. Implement the dataset loader and register it in
+       ``data/dataset.py`` ``DATASET_REGISTRY``.
+    3. Set the ``backend`` / ``dataset`` keys in the JSON config.
 """
 import argparse
 import json
@@ -25,15 +28,40 @@ from utils.plot import plot_results
 
 
 # ---------------------------------------------------------------------------
-# 配置加载
+# Configuration loading
 # ---------------------------------------------------------------------------
 def load_config(config_path):
+    """Load a JSON configuration file.
+
+    Parameters
+    ----------
+    config_path : str or Path
+        Path to the JSON configuration file.
+
+    Returns
+    -------
+    dict
+        Parsed configuration dictionary.
+    """
     with open(config_path) as f:
         return json.load(f)
 
 
 def merge_cli_overrides(cfg, args):
-    """命令行参数覆盖 JSON 配置"""
+    """Merge CLI argument overrides into the configuration dictionary.
+
+    Parameters
+    ----------
+    cfg : dict
+        Base configuration loaded from JSON.
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    dict
+        Configuration with CLI values merged in (in-place).
+    """
     overrides = {
         'training': ['epochs', 'lr', 'early_stop', 'patience', 'min_delta',
                      'restore_best_weights', 'use_scheduler', 'scheduler_factor',
@@ -48,7 +76,7 @@ def merge_cli_overrides(cfg, args):
             if val is not None:
                 cfg[section][key] = val
 
-    # 顶层覆盖
+    # Top-level overrides.
     if args.backend:
         cfg['task']['backend'] = args.backend
     if args.data_path:
@@ -62,10 +90,17 @@ def merge_cli_overrides(cfg, args):
 
 
 # ---------------------------------------------------------------------------
-# 训练流水线
+# Training pipeline
 # ---------------------------------------------------------------------------
 def run_training(cfg):
-    """按配置执行完整训练流水线"""
+    """Execute the full training pipeline from a configuration dictionary.
+
+    Parameters
+    ----------
+    cfg : dict
+        Configuration with ``task``, ``data``, ``model``, ``training``,
+        and ``output`` sections.
+    """
     proj_root = Path(__file__).resolve().parent
 
     task_cfg = cfg['task']
@@ -77,8 +112,7 @@ def run_training(cfg):
     backend = task_cfg['backend']
     dataset_name = task_cfg['dataset']
 
-    # --- 路径 ---
-    # csv_path 相对于项目根目录或绝对路径
+    # --- Paths ---
     csv_path = data_cfg.get('csv_path', '')
     if not Path(csv_path).is_absolute():
         csv_path = str(proj_root / csv_path)
@@ -89,16 +123,17 @@ def run_training(cfg):
     model_dir.mkdir(exist_ok=True)
     plot_dir.mkdir(exist_ok=True)
 
-    # --- 数据 ---
-    features, labels, feature_scaler, label_scaler = load_dataset(dataset_name, data_cfg)
+    # --- Data ---
+    features, labels, feature_scaler, label_scaler = load_dataset(
+        dataset_name, data_cfg)
 
-    # --- 配置摘要 ---
-    print(f'任务: backend={backend}, target={data_cfg.get("target_col", "?")}')
-    print(f'数据: {csv_path}  (总样本: {len(features)})')
-    print(f'模型配置: {json.dumps(model_cfg, indent=2)}')
-    print(f'训练配置: {json.dumps(train_cfg, indent=2)}')
+    # --- Configuration summary ---
+    print(f'Task: backend={backend}, target={data_cfg.get("target_col", "?")}')
+    print(f'Data: {csv_path}  (total samples: {len(features)})')
+    print(f'Model config: {json.dumps(model_cfg, indent=2)}')
+    print(f'Training config: {json.dumps(train_cfg, indent=2)}')
 
-    # --- 交叉验证 ---
+    # --- Cross-validation ---
     all_train_metrics = []
     all_val_metrics = []
 
@@ -108,7 +143,7 @@ def run_training(cfg):
                              random_state=data_cfg['random_state'])):
         print(f'\n{"=" * 60}')
         print(f'=== Fold {fold + 1}/{data_cfg["n_splits"]} ===')
-        print(f'训练集: {len(tr_x)}, 验证集: {len(val_x)}')
+        print(f'Train set: {len(tr_x)}, val set: {len(val_x)}')
 
         model, train_metrics, val_metrics = train_model(
             tr_x, tr_y, val_x, val_y,
@@ -141,11 +176,20 @@ def run_training(cfg):
         all_val_metrics.append(val_metrics)
 
     print_cv_summary(all_train_metrics, all_val_metrics)
-    print(f'\n模型保存至: {model_dir}')
-    print(f'图表保存至: {plot_dir}')
+    print(f'\nModels saved to: {model_dir}')
+    print(f'Plots saved to: {plot_dir}')
 
 
 def print_cv_summary(all_train_metrics, all_val_metrics):
+    """Print mean ± std summary across all cross-validation folds.
+
+    Parameters
+    ----------
+    all_train_metrics : list of tuple
+        Per-fold training metrics (RMSE, Pearson r, Spearman rho, R²).
+    all_val_metrics : list of tuple
+        Per-fold validation metrics.
+    """
     def mean_std(values):
         return np.mean(values), np.std(values)
 
@@ -154,12 +198,12 @@ def print_cv_summary(all_train_metrics, all_val_metrics):
     names = ['RMSE', 'Pearson', 'Spearman', 'R2']
 
     print('\n' + '=' * 60)
-    print('=== 交叉验证总结 ===')
-    print('\n训练集:')
+    print('=== Cross-Validation Summary ===')
+    print('\nTrain set:')
     for i, name in enumerate(names):
         m, s = mean_std(train_metrics[:, i])
         print(f'  {name}: {m:.4f} ± {s:.4f}')
-    print('\n验证集:')
+    print('\nValidation set:')
     for i, name in enumerate(names):
         m, s = mean_std(val_metrics[:, i])
         print(f'  {name}: {m:.4f} ± {s:.4f}')
@@ -169,11 +213,17 @@ def print_cv_summary(all_train_metrics, all_val_metrics):
 # CLI
 # ---------------------------------------------------------------------------
 def build_parser():
+    """Build the argument parser for the training CLI.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+    """
     parser = argparse.ArgumentParser(
-        description='VQC 变分量子分类器 — 训练入口',
+        description='VQC Variational Quantum Classifier — training entry point',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
+Examples:
   python train.py
   python train.py --config configs/train_config.json
   python train.py --backend classical
@@ -184,49 +234,52 @@ def build_parser():
     )
 
     parser.add_argument('--config', type=str, default='configs/train_config.json',
-                        help='JSON 配置文件路径')
+                        help='Path to JSON configuration file')
 
-    # 任务
-    g_task = parser.add_argument_group('任务')
-    g_task.add_argument('--backend', type=str, help='计算后端: vqc / classical / classical_torch')
+    # Task
+    g_task = parser.add_argument_group('Task')
+    g_task.add_argument('--backend', type=str,
+                        help='Backend: vqc / classical / classical_torch')
 
-    # 数据
-    g_data = parser.add_argument_group('数据')
-    g_data.add_argument('--data-path', type=str, help='CSV 数据路径')
-    g_data.add_argument('--target-col', type=str, help='回归目标列名: Corr_MP2 / Corr_CCSD / Corr_CCSD(T)')
-    g_data.add_argument('--batch-size', type=int, help='批次大小')
-    g_data.add_argument('--n-splits', type=int, help='交叉验证折数')
-    g_data.add_argument('--random-state', type=int, help='随机种子')
+    # Data
+    g_data = parser.add_argument_group('Data')
+    g_data.add_argument('--data-path', type=str, help='Path to CSV data file')
+    g_data.add_argument('--target-col', type=str,
+                        help='Target column: Corr_MP2 / Corr_CCSD / Corr_CCSD(T)')
+    g_data.add_argument('--batch-size', type=int, help='Batch size')
+    g_data.add_argument('--n-splits', type=int, help='Number of CV folds')
+    g_data.add_argument('--random-state', type=int, help='Random seed')
 
-    # 模型
-    g_model = parser.add_argument_group('模型')
-    g_model.add_argument('--qubit-num', type=int, help='量子比特数 (仅 VQC)')
-    g_model.add_argument('--hidden-size', type=int, help='隐藏层维度')
-    g_model.add_argument('--dropout-rate', type=float, help='Dropout 比例')
-    g_model.add_argument('--qc-layers', type=int, help='量子电路层数 (仅 VQC)')
+    # Model
+    g_model = parser.add_argument_group('Model')
+    g_model.add_argument('--qubit-num', type=int, help='Number of qubits (VQC only)')
+    g_model.add_argument('--hidden-size', type=int, help='Hidden layer dimension')
+    g_model.add_argument('--dropout-rate', type=float, help='Dropout rate')
+    g_model.add_argument('--qc-layers', type=int, help='Number of VQC layers (VQC only)')
 
-    # 训练
-    g_train = parser.add_argument_group('训练')
-    g_train.add_argument('--epochs', type=int, help='训练轮数')
-    g_train.add_argument('--lr', type=float, help='学习率')
-    g_train.add_argument('--early-stop', dest='early_stop', action='store_true', default=None,
-                         help='启用早停法 (默认)')
-    g_train.add_argument('--no-early-stop', dest='early_stop', action='store_false', default=None,
-                         help='禁用早停法, 训练完所有 epochs')
-    g_train.add_argument('--patience', type=int, help='早停耐心值')
-    g_train.add_argument('--min-delta', type=float, help='早停最小改善阈值')
+    # Training
+    g_train = parser.add_argument_group('Training')
+    g_train.add_argument('--epochs', type=int, help='Number of training epochs')
+    g_train.add_argument('--lr', type=float, help='Learning rate')
+    g_train.add_argument('--early-stop', dest='early_stop', action='store_true',
+                         default=None, help='Enable early stopping (default)')
+    g_train.add_argument('--no-early-stop', dest='early_stop', action='store_false',
+                         default=None, help='Disable early stopping, run all epochs')
+    g_train.add_argument('--patience', type=int, help='Early stopping patience')
+    g_train.add_argument('--min-delta', type=float, help='Minimum improvement threshold')
     g_train.add_argument('--use-scheduler', dest='use_scheduler', action='store_true',
-                         default=None, help='启用 ReduceLROnPlateau 调度器 (默认)')
+                         default=None, help='Enable ReduceLROnPlateau scheduler (default)')
     g_train.add_argument('--no-scheduler', dest='use_scheduler', action='store_false',
-                         default=None, help='禁用学习率调度器')
-    g_train.add_argument('--scheduler-factor', type=float, help='调度器衰减因子')
-    g_train.add_argument('--scheduler-patience', type=int, help='调度器耐心值')
-    g_train.add_argument('--grad-clip-norm', type=float, help='梯度裁剪 max_norm (0=禁用)')
+                         default=None, help='Disable learning rate scheduler')
+    g_train.add_argument('--scheduler-factor', type=float, help='Scheduler decay factor')
+    g_train.add_argument('--scheduler-patience', type=int, help='Scheduler patience')
+    g_train.add_argument('--grad-clip-norm', type=float,
+                         help='Gradient clipping max_norm (0 to disable)')
 
-    # 输出
-    g_out = parser.add_argument_group('输出')
-    g_out.add_argument('--model-dir', type=str, help='模型保存目录')
-    g_out.add_argument('--plot-dir', type=str, help='图表保存目录')
+    # Output
+    g_out = parser.add_argument_group('Output')
+    g_out.add_argument('--model-dir', type=str, help='Model save directory')
+    g_out.add_argument('--plot-dir', type=str, help='Plot save directory')
 
     return parser
 

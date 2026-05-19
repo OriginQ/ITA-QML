@@ -1,24 +1,63 @@
-"""PyTorch 训练器 — 适用于 classical_torch 等 torch 后端"""
+"""PyTorch trainer for ``classical_torch`` and other torch backends."""
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from train.trainer import calculate_metrics  # 公共指标
+from train.trainer import calculate_metrics
 
 
 # ---------------------------------------------------------------------------
-# 数据加载 (torch 版本)
+# Data loading (torch)
 # ---------------------------------------------------------------------------
 def _build_torch_loader(features, labels, batch_size, shuffle):
+    """Build a torch DataLoader from numpy arrays.
+
+    Parameters
+    ----------
+    features : ndarray
+        Feature matrix.
+    labels : ndarray
+        Label matrix.
+    batch_size : int
+        Mini-batch size.
+    shuffle : bool
+        Whether to shuffle each epoch.
+
+    Returns
+    -------
+    DataLoader
+    """
     x = torch.FloatTensor(features)
     y = torch.FloatTensor(labels)
     return DataLoader(TensorDataset(x, y), batch_size=batch_size, shuffle=shuffle)
 
 
 # ---------------------------------------------------------------------------
-# 验证 / 评估
+# Evaluation
 # ---------------------------------------------------------------------------
 def evaluate_model(model, features, labels, batch_size, label_scaler=None):
+    """Evaluate a torch model on the given data.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained model.
+    features : ndarray
+        Input features.
+    labels : ndarray
+        Ground-truth labels.
+    batch_size : int
+        Batch size for evaluation.
+    label_scaler : StandardScaler, optional
+        Scaler for inverse-transforming predictions.
+
+    Returns
+    -------
+    predictions : ndarray
+        Model predictions.
+    actuals : ndarray
+        Ground-truth values.
+    """
     model.eval()
     loader = _build_torch_loader(features, labels, batch_size, shuffle=False)
     predictions = []
@@ -39,7 +78,7 @@ def evaluate_model(model, features, labels, batch_size, label_scaler=None):
 
 
 # ---------------------------------------------------------------------------
-# 训练主循环 (与 trainer_vqnet 签名一致)
+# Training loop (signature matches trainer_vqnet)
 # ---------------------------------------------------------------------------
 def train_model(train_features, train_labels, val_features, val_labels,
                 label_scaler, model_dir, plot_dir, epochs=100, lr=0.001,
@@ -48,6 +87,38 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 backend='classical_torch', model_cfg=None,
                 use_scheduler=True, scheduler_factor=0.5, scheduler_patience=20,
                 grad_clip_norm=1.0):
+    """Train a torch model.
+
+    Parameters
+    ----------
+    train_features : ndarray
+    train_labels : ndarray
+    val_features : ndarray
+    val_labels : ndarray
+    label_scaler : StandardScaler
+    model_dir : pathlib.Path
+    plot_dir : pathlib.Path
+    epochs : int, default=100
+    lr : float, default=0.001
+    batch_size : int, default=32
+    fold : int, default=0
+    early_stop : bool, default=True
+    patience : int, default=10
+    min_delta : float, default=1e-4
+    restore_best_weights : bool, default=True
+    backend : str, default='classical_torch'
+    model_cfg : dict, optional
+    use_scheduler : bool, default=True
+    scheduler_factor : float, default=0.5
+    scheduler_patience : int, default=20
+    grad_clip_norm : float, default=1.0
+
+    Returns
+    -------
+    model : torch.nn.Module
+    train_metrics : tuple
+    val_metrics : tuple
+    """
     from models import create_model
 
     if model_cfg is None:
@@ -56,7 +127,6 @@ def train_model(train_features, train_labels, val_features, val_labels,
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
 
-    # 学习率调度器 (来自 cml.py)
     scheduler = None
     if use_scheduler:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -75,7 +145,7 @@ def train_model(train_features, train_labels, val_features, val_labels,
     stopped_early = False
 
     for epoch in range(epochs):
-        # === 训练 ===
+        # --- Train ---
         model.train()
         train_loss = 0.0
         for batch_x, batch_y in train_loader:
@@ -83,7 +153,6 @@ def train_model(train_features, train_labels, val_features, val_labels,
             loss = criterion(model(batch_x), batch_y)
             loss.backward()
 
-            # 梯度裁剪 (来自 cml.py, grad_clip_norm=0 则禁用)
             if grad_clip_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(),
                                                max_norm=grad_clip_norm)
@@ -92,7 +161,7 @@ def train_model(train_features, train_labels, val_features, val_labels,
             train_loss += loss.item()
         train_loss /= max(len(train_loader), 1)
 
-        # === 验证 ===
+        # --- Validate ---
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -100,7 +169,6 @@ def train_model(train_features, train_labels, val_features, val_labels,
                 val_loss += criterion(model(batch_x), batch_y).item()
         val_loss /= max(len(val_loader), 1)
 
-        # 学习率调度
         if scheduler is not None:
             scheduler.step(val_loss)
 
@@ -110,36 +178,39 @@ def train_model(train_features, train_labels, val_features, val_labels,
                   f'Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, '
                   f'LR: {current_lr:.6f}')
 
-        # === 早停 (仅在 early_stop=True 时生效) ===
+        # --- Early stopping ---
         if early_stop:
             if val_loss < best_val_loss - min_delta:
                 best_val_loss = val_loss
                 patience_counter = 0
-                best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                best_state = {k: v.cpu().clone()
+                              for k, v in model.state_dict().items()}
                 torch.save(model.state_dict(), best_param_file)
                 if (epoch + 1) % 20 == 0:
-                    print(f'  ✓ 验证损失改善, 保存最佳模型 (val_loss={val_loss:.4f})')
+                    print(f'  -> val loss improved, saved best model '
+                          f'(val_loss={val_loss:.4f})')
             else:
                 patience_counter += 1
                 if (epoch + 1) % 20 == 0:
-                    print(f'  ⚠ 验证损失未改善 {patience_counter}/{patience}')
+                    print(f'  -> val loss did not improve '
+                          f'{patience_counter}/{patience}')
                 if patience_counter >= patience:
                     stopped_early = True
-                    print(f'  🛑 早停触发！在 epoch {epoch + 1} 停止训练')
+                    print(f'  -- early stopping triggered at epoch {epoch + 1}')
                     break
 
-    # 恢复最佳权重 (仅早停模式)
+    # Restore best weights (early-stop mode only).
     if early_stop and stopped_early and restore_best_weights and best_state is not None:
         model.load_state_dict(best_state)
-        print(f'  ↻ 已恢复最佳模型权重 (val_loss={best_val_loss:.4f})')
+        print(f'  -> restored best model weights (val_loss={best_val_loss:.4f})')
 
     if not early_stop:
         torch.save(model.state_dict(), best_param_file)
-        print(f'训练完成, 模型已保存为 {best_param_file}')
+        print(f'Training complete, model saved to {best_param_file}')
     elif stopped_early:
-        print(f'训练提前停止, 最佳模型已保存为 {best_param_file}')
+        print(f'Training stopped early, best model saved to {best_param_file}')
     else:
-        print(f'训练完成, 最佳模型已保存为 {best_param_file}')
+        print(f'Training complete, best model saved to {best_param_file}')
 
     train_pred, train_true = evaluate_model(
         model, train_features, train_labels, batch_size, label_scaler)
@@ -149,10 +220,10 @@ def train_model(train_features, train_labels, val_features, val_labels,
     train_metrics = calculate_metrics(train_pred, train_true)
     val_metrics = calculate_metrics(val_pred, val_true)
 
-    print(f'\nFold {fold + 1}训练集评估指标:')
+    print(f'\nFold {fold + 1} train metrics:')
     print(f'RMSE: {train_metrics[0]:.4f}, Pearson: {train_metrics[1]:.4f}, '
           f'Spearman: {train_metrics[2]:.4f}, R2: {train_metrics[3]:.4f}')
-    print(f'\nFold {fold + 1}验证集评估指标:')
+    print(f'\nFold {fold + 1} val metrics:')
     print(f'RMSE: {val_metrics[0]:.4f}, Pearson: {val_metrics[1]:.4f}, '
           f'Spearman: {val_metrics[2]:.4f}, R2: {val_metrics[3]:.4f}')
 

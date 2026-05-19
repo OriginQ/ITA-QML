@@ -1,14 +1,29 @@
-"""纯经典神经网络 — 基线模型, 用于与 VQC 对比"""
+"""Classical MLP baseline model (pyvqnet framework).
+
+Used as a reference point for comparing against the quantum-classical
+hybrid VQC model.
+"""
 from pyvqnet.nn import Module, Linear, Sequential
 from pyvqnet.nn.activation import LeakyReLu
 from pyvqnet.nn.dropout import Dropout
 
 
 class ClassicalNet(Module):
-    """经典 MLP 基线
+    """Classical MLP baseline for regression.
 
-    固定结构: Linear(11→24) → LeakyReLU → Dropout
-               → Linear(24→24) → LeakyReLU → Linear(24→1)
+    Fixed architecture::
+
+        Linear(11 -> 24) -> LeakyReLU -> Dropout
+        -> Linear(24 -> 24) -> LeakyReLU -> Linear(24 -> 1)
+
+    Parameters
+    ----------
+    input_size : int, default=11
+        Number of input features.
+    dropout_rate : float, default=0.1
+        Dropout probability (currently disabled via comment).
+    **kwargs : dict
+        Ignored; for compatibility with the registry factory signature.
     """
     def __init__(self, input_size=11, dropout_rate=0.1, **kwargs):
         super().__init__()
@@ -22,4 +37,16 @@ class ClassicalNet(Module):
         )
 
     def forward(self, x):
+        """Forward pass.
+
+        Parameters
+        ----------
+        x : QTensor
+            Input tensor of shape ``(batch, input_size)``.
+
+        Returns
+        -------
+        QTensor
+            Predicted values of shape ``(batch, 1)``.
+        """
         return self.net(x)

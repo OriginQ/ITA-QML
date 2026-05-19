@@ -1,12 +1,29 @@
-"""经典深度 MLP 模型 (PyTorch) — 供 classical_torch 后端使用"""
+"""Classical deep MLP model (PyTorch framework).
+
+Provides the ``classical_torch`` backend for comparison against the
+pyvqnet-based classical and VQC models.
+"""
 import torch
 
 
 class DeepMLP(torch.nn.Module):
-    """经典深度 MLP 回归模型
+    """Classical deep MLP regression model.
 
-    固定结构: Linear(11→24) → LeakyReLU → Dropout
-               → Linear(24→24) → LeakyReLU → Linear(24→1)
+    Fixed architecture::
+
+        Linear(11 -> 24) -> LeakyReLU -> Dropout
+        -> Linear(24 -> 24) -> LeakyReLU -> Linear(24 -> 1)
+
+    Parameters
+    ----------
+    input_size : int, default=11
+        Number of input features.
+    dropout_rate : float, default=0.1
+        Dropout probability (currently disabled via comment).
+    leaky_relu_slope : float, default=0.1
+        Negative slope for LeakyReLU activations.
+    **kwargs : dict
+        Ignored; for compatibility with the registry factory signature.
     """
     def __init__(self, input_size=11, dropout_rate=0.1,
                  leaky_relu_slope=0.1, **kwargs):
@@ -21,4 +38,16 @@ class DeepMLP(torch.nn.Module):
         )
 
     def forward(self, x):
+        """Forward pass.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape ``(batch, input_size)``.
+
+        Returns
+        -------
+        torch.Tensor
+            Predicted values of shape ``(batch, 1)``.
+        """
         return self.net(x)

@@ -1,14 +1,16 @@
-"""模型注册中心 — 按 backend 名字派发模型
+"""Model registry — dispatches model classes by backend name.
 
-每种后端按可用框架自动注册。在特定环境中只导入该环境支持的模型。
+Each backend is registered when its framework is available in the
+current environment.  Only models whose dependencies are importable
+will appear in ``MODEL_REGISTRY``.
 
-新增模型:
-    1. 实现模型类, 构造函数接受 **model_cfg
-    2. 在下方对应的框架块中注册到 MODEL_REGISTRY
+To add a new model:
+    1. Implement the model class (constructor must accept ``**model_cfg``).
+    2. Register it in the appropriate framework block below.
 """
 MODEL_REGISTRY = {}
 
-# ---- pyvqnet 模型 ----
+# ---- pyvqnet models ---------------------------------------------------------
 try:
     from models.quantum_model import QNet
     from models.classical import ClassicalNet
@@ -17,7 +19,7 @@ try:
 except ImportError:
     pass
 
-# ---- PyTorch 模型 ----
+# ---- PyTorch models ---------------------------------------------------------
 try:
     from models.classical_torch import DeepMLP
     MODEL_REGISTRY['classical_torch'] = DeepMLP
@@ -26,10 +28,29 @@ except ImportError:
 
 
 def create_model(backend, model_cfg):
-    """根据 backend 名创建模型实例"""
+    """Create a model instance by backend name.
+
+    Parameters
+    ----------
+    backend : str
+        Backend identifier (e.g. ``"vqc"``, ``"classical"``,
+        ``"classical_torch"``).
+    model_cfg : dict
+        Keyword arguments forwarded to the model constructor.
+
+    Returns
+    -------
+    model : Module or torch.nn.Module
+        Instantiated model.
+
+    Raises
+    ------
+    ValueError
+        If *backend* is not registered in ``MODEL_REGISTRY``.
+    """
     cls = MODEL_REGISTRY.get(backend)
     if cls is None:
         raise ValueError(
-            f"未知 backend: '{backend}'。"
-            f"当前环境可用: {list(MODEL_REGISTRY.keys())}")
+            f"Unknown backend: '{backend}'. "
+            f"Available in current environment: {list(MODEL_REGISTRY.keys())}")
     return cls(**model_cfg)

@@ -1,27 +1,47 @@
-"""数据加载模块 — 统一 CSV 回归数据集 (框架无关)
+"""Data loading module for CSV regression datasets.
 
-约定: 所有 CSV 文件列 0 为序号, 列 1~11 为 11 维特征 (Shannon~Ig), 其余列为回归目标。
-      通过 target_col 指定目标列名即可切换回归目标。
+Convention: all CSV files use column 0 as an index, columns 1--11 as
+11-dimensional features (Shannon through Ig), and the remaining columns
+as regression targets.  Switching targets is done by specifying the
+``target_col`` key in the data configuration dictionary.
 """
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import KFold
 
-# 特征列范围 (0-based, 不含序号列)
+# Feature column range (0-based, excluding the index column).
 FEATURE_START = 1   # Shannon
-FEATURE_END = 12    # Ig + 1 = 12
+FEATURE_END = 12    # Ig + 1
 
 
 # ---------------------------------------------------------------------------
-# 数据集加载
+# Dataset loading
 # ---------------------------------------------------------------------------
 def load_csv_regression(data_cfg):
-    """通用 CSV 回归数据集
+    """Load a generic CSV regression dataset.
 
-    Required keys in data_cfg:
-        csv_path   — CSV 文件路径
-        target_col — 目标列名, 如 "Corr_MP2" / "Corr_CCSD" / "Corr_CCSD(T)"
+    Parameters
+    ----------
+    data_cfg : dict
+        Configuration dictionary with the following keys:
+
+        csv_path : str
+            Path to the CSV file.
+        target_col : str
+            Name of the target column, e.g. ``"Corr_MP2"``, ``"Corr_CCSD"``,
+            or ``"Corr_CCSD(T)"``.
+
+    Returns
+    -------
+    features : ndarray of shape (n_samples, 11)
+        Standardized feature matrix (float32).
+    labels : ndarray of shape (n_samples, 1)
+        Standardized target values (float32).
+    feature_scaler : StandardScaler
+        Fitted scaler for the features.
+    label_scaler : StandardScaler
+        Fitted scaler for the labels.
     """
     data = pd.read_csv(data_cfg['csv_path'])
     features = data.iloc[:, FEATURE_START:FEATURE_END].values
@@ -42,19 +62,58 @@ DATASET_REGISTRY = {
 
 
 def load_dataset(dataset_name, data_cfg):
-    """按数据集名派发加载"""
+    """Dispatch to a registered dataset loader by name.
+
+    Parameters
+    ----------
+    dataset_name : str
+        Key in ``DATASET_REGISTRY`` identifying the dataset type.
+    data_cfg : dict
+        Configuration dictionary forwarded to the loader function.
+
+    Returns
+    -------
+    features : ndarray
+    labels : ndarray
+    feature_scaler : StandardScaler
+    label_scaler : StandardScaler
+
+    Raises
+    ------
+    ValueError
+        If *dataset_name* is not found in ``DATASET_REGISTRY``.
+    """
     fn = DATASET_REGISTRY.get(dataset_name)
     if fn is None:
-        raise ValueError(f"未知数据集类型: '{dataset_name}'。"
-                         f"可用: {list(DATASET_REGISTRY.keys())}")
+        raise ValueError(f"Unknown dataset type: '{dataset_name}'. "
+                         f"Available: {list(DATASET_REGISTRY.keys())}")
     return fn(data_cfg)
 
 
 # ---------------------------------------------------------------------------
-# 交叉验证数据分割 (框架无关)
+# Cross-validation splits (framework-agnostic)
 # ---------------------------------------------------------------------------
 def create_cv_splits(features, labels, n_splits=10, random_state=42):
-    """KFold 交叉验证数据分割生成器"""
+    """Generate K-fold cross-validation train/validation splits.
+
+    Parameters
+    ----------
+    features : ndarray of shape (n_samples, n_features)
+        Feature matrix.
+    labels : ndarray of shape (n_samples, n_targets)
+        Label matrix.
+    n_splits : int, default=10
+        Number of folds.
+    random_state : int, default=42
+        Random seed for reproducible shuffling.
+
+    Yields
+    ------
+    train_features : ndarray
+    train_labels : ndarray
+    val_features : ndarray
+    val_labels : ndarray
+    """
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     for train_idx, val_idx in kf.split(features):
         yield (features[train_idx], labels[train_idx],
