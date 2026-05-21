@@ -29,27 +29,18 @@
 
 ## Architecture
 
-```
-                        ┌──────────────────────────┐
-  Molecular             │  Classical Front-End     │
-  Descriptors           │ Linear(11→24) → LeakyReLU│
-  (Shannon ~ Ig) ─────▶│ → Dropout → Linear(24→6) │
-  [11 features]         └──────────┬───────────────┘
-                                   │
-                        ┌──────────▼───────────────┐
-                        │  VQC Layer (6 qubits)    │
-                        │  RX_enc(x) → RX_var(θ)   │
-                        │  → CNOT chain            │
-                        │  → Measure <Zᵢ>          │
-                        └──────────┬───────────────┘
-                                   │
-                        ┌──────────▼───────────────┐
-                        │  Classical Back-End      │
-                        │ Linear(6→6) → Linear(6→1)│
-                        └──────────┬───────────────┘
-                                   │
-                                   ▼
-                        Predicted Correlated Energy
+```mermaid
+graph TD
+    A["<b>Molecular Descriptors</b><br/>Shannon ~ Ig<br/>(11 features)"] --> B["<b>Classical Front-End</b><br/>Linear(11→24) → LeakyReLU<br/>→ Dropout → Linear(24→6)"]
+    B --> C["<b>VQC Layer</b> (6 qubits)<br/>RX_enc(x) → RX_var(θ)<br/>→ CNOT chain<br/>→ Measure <Z<sub>i</sub>>"]
+    C --> D["<b>Classical Back-End</b><br/>Linear(6→6) → Linear(6→1)"]
+    D --> E["<b>Predicted Correlated Energy</b>"]
+
+    style A fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style C fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style D fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style E fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
 ```
 
 The VQC layer is equivalent to PennyLane's `AngleEmbedding + BasicEntanglerLayers → PauliZ` expectation, implemented with VQNet's built-in automatic-differentiation simulator.

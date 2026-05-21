@@ -29,27 +29,18 @@
 
 ## 模型架构
 
-```
-                        ┌──────────────────────────┐
-  分子描述符            │  经典前端                 │
-  (Shannon ~ Ig)        │ Linear(11→24) → LeakyReLU│
-  [11 维特征] ────────▶│ → Dropout → Linear(24→6) │
-                        └──────────┬───────────────┘
-                                   │
-                        ┌──────────▼───────────────┐
-                        │  VQC 量子电路层 (6 比特)  │
-                        │  RX_enc(x) → RX_var(θ)   │
-                        │  → CNOT 纠缠链           │
-                        │  → 测量 <Zᵢ>             │
-                        └──────────┬───────────────┘
-                                   │
-                        ┌──────────▼───────────────┐
-                        │  经典后端                │
-                        │ Linear(6→6) → Linear(6→1)│
-                        └──────────┬───────────────┘
-                                   │
-                                   ▼
-                        预测相关电子能
+```mermaid
+graph TD
+    A["<b>分子描述符</b><br/>Shannon ~ Ig<br/>(11 维特征)"] --> B["<b>经典前端</b><br/>Linear(11→24) → LeakyReLU<br/>→ Dropout → Linear(24→6)"]
+    B --> C["<b>VQC 量子层</b> (6 量子比特)<br/>RX_enc(x) → RX_var(θ)<br/>→ CNOT 纠缠链<br/>→ 测量 <Z<sub>i</sub>>"]
+    C --> D["<b>经典后端</b><br/>Linear(6→6) → Linear(6→1)"]
+    D --> E["<b>预测关联能量</b>"]
+
+    style A fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style C fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style D fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style E fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
 ```
 
 VQC 层等价于 PennyLane 的 `AngleEmbedding + BasicEntanglerLayers → PauliZ` 期望值测量，使用 VQNet 内置的自动微分模拟器实现。
