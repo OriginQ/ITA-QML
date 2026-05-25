@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/OriginQ/ITA-QML/releases/tag/v1.0.0)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 > **论文**: *[论文标题 — 待补充]*  
 > **链接**: *[DOI / arXiv — 待补充]*
@@ -203,4 +203,4 @@ python train.py --backend my_net --config configs/my_config.json
 
 ## 许可证
 
-本项目基于 MIT 许可证开源。详见 [LICENSE](../LICENSE)。
+本项目基于 Apache License 2.0 开源。详见 [LICENSE](../LICENSE)。

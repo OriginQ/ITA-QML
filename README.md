@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/OriginQ/ITA-QML/releases/tag/v1.0.0)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 > **Paper**: *[Paper Title — To Be Added]*  
 > **Link**: *[DOI / arXiv — To Be Added]*
@@ -203,4 +203,4 @@ If you use QME-VQNet in your research, please cite:
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
